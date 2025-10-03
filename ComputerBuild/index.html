@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>💻 Симулятор Сборки ПК</title>
+  <style>
+    body { background: #111; color: #0f0; font-family: monospace; padding: 20px; }
+    select, button { width: 100%; padding: 10px; margin: 5px 0; background: #222; color: #0f0; border: 1px solid #0f0; }
+    #sellBtn { display: none; }
+    .summary { margin-top: 20px; border-top: 2px dashed #0f0; padding-top: 10px; }
+    #clientRequest { margin-top: 10px; color: deepskyblue; }
+  </style>
+</head>
+<body>
+
+<h1>🖥️ Симулятор Сборки ПК</h1>
+<h2>💰 Бюджет: $<span id="budget"></span></h2>
+<div>
+  <button onclick="newClient()">🎯 Новый клиент</button>
+  <div id="clientRequest"></div>
+  <button onclick="clearStorage()">🧹 Сбросить бюджет</button>
+</div>
+<div id="selectors"></div>
+<button onclick="buildPC()">🛠️ Собрать ПК</button>
+<button id="sellBtn" onclick="sellPC()">💵 Продать ПК</button>
+<div class="summary" id="result"></div>
+
+<script>
+let DEFAULT_BUDGET = 478;
+if (!localStorage.getItem("pc_budget")) localStorage.setItem("pc_budget", DEFAULT_BUDGET);
+let budget = parseInt(localStorage.getItem("pc_budget")) || DEFAULT_BUDGET;
+let lastBuildCost = 0;
+let pcBuilt = false;
+function clearStorage() {
+  localStorage.removeItem("pc_budget"); // убираем только бюджет
+  budget = DEFAULT_BUDGET; // возвращаем дефолтный бюджет
+  updateBudgetDisplay(); // обновляем отображение
+  document.getElementById("result").innerHTML = "<h3>🟢 Бюджет сброшен!</h3>";
+}
+
+let clientPhrases = {
+  adjectives: ["мощный", "дешёвый", "тихий", "быстрый", "красивый", "современный", "игровой", "простой", "надёжный", "RGB"],
+  components: ["процессор", "видеокарта", "оперативка", "диск", "монитор", "система", "корпус", "кулер", "звук", "блок питания"],
+  wants: ["хочу", "нужен", "ищу", "заказал бы", "предпочитаю", "желаю", "прошу", "хотел бы"],
+  names: ["Денис", "Анна", "Саша", "Игорь", "Кирилл", "Наташа", "Роман", "Мария", "Бахтияр", "Айгерим"]
+};
+
+function random(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function newClient() {
+  const name = random(clientPhrases.names);
+  const phrase = `${random(clientPhrases.wants)} ${random(clientPhrases.adjectives)} ${random(clientPhrases.components)}!`;
+  document.getElementById("clientRequest").innerHTML = `<b>🧑 Клиент ${name}:</b> <i>\"${phrase}\"</i>`;
+}
+
+let partData = {
+  cpu: [["Intel Celeron", 20], ["Pentium 4", 40], ["Intel Core i3", 80], ["Intel Core i5", 160], ["AMD Ryzen 5", 250], ["Intel Core i7", 400], ["AMD Ryzen 7", 600], ["Intel Core i9", 1000], ["AMD Threadripper", 2000], ["Xeon Platinum", 5000], ["Patreon Kali X22", 10000], ["Weow Cast 000", 23000], ["Candy Quest x999", 46000], ["PCast Layout 50", 70000], ["Daily PC", 150000], ["Best Kali XXt 1090",  250000], ["ALZ Open Q12", 8000000]],
+  gpu: [["S3 Trio", 10], ["Riva TNT2", 30], ["GeForce FX 5200", 60], ["Radeon HD 5450", 100], ["GTX 750", 150], ["GTX 1050 Ti", 250], ["GTX 1660 Super", 400], ["RTX 3060", 800], ["RTX 4080", 1500], ["Quantum Ray Core", 5000], ["Pantium-1020", 10000], ["QGPU CAN 1000", 26000], ["eRT oQl100", 45000], ["OpenVBn RTS120", 67000], ["FTR LaSt P3", 95000], ["PeP LTE1", 150000], ["We RtC10", 256000], ["REET RRT12X", 1000000]],
+  ram: [["128MB SDRAM", 10], ["256MB DDR", 20], ["1GB DDR2", 40], ["4GB DDR3", 80], ["8GB DDR4", 130], ["16GB DDR4", 200], ["32GB DDR5", 300], ["64GB DDR6", 600], ["128GB HBM", 1000], ["1TB Quantum RAM", 5000], ["QuestCast P19", 230000]],
+  storage: [["HDD 10GB", 10], ["HDD 80GB", 25], ["HDD 500GB", 50], ["SSD 120GB", 100], ["SSD 512GB", 180], ["SSD 1TB", 300], ["NVMe 2TB", 600], ["Optane 4TB", 1000], ["Quantum SSD 10TB", 2500], ["Neutron Drive 100TB", 5000], ["DRReQuest5", 400000]],
+  motherboard: [["Socket 370", 20], ["AM2 Board", 50], ["LGA775", 100], ["B450", 200], ["Z490", 300], ["X570", 500], ["Z790 Gaming", 800], ["Dual CPU Server", 1500], ["QuantumSlot Board", 3000], ["Neural Fusion Board", 5000], ["RTX5060 Board", 120000], ["Gerls Pw Board", 6000000]],
+  psu: [["200W", 10], ["300W", 30], ["450W Bronze", 60], ["600W", 120], ["750W", 200], ["850W Gold", 300], ["1000W Platinum", 500], ["1600W Titanium", 800], ["Fusion Reactor PSU", 1500], ["Dark Matter PSU", 5000]],
+  cooler: [["Passive Heatsink", 10], ["Small Fan", 20], ["Tower Air", 60], ["Dual Fan RGB", 120], ["Liquid Cooler", 200], ["240mm AIO", 300], ["360mm AIO RGB", 500], ["Nitrogen Pot", 800], ["Quantum Cooler", 1500], ["AI Thermal Reactor", 5000]],
+  case: [["Mini ITX Box", 10], ["Micro ATX", 30], ["Standard ATX", 70], ["RGB Mid Tower", 140], ["Full Tower", 220], ["Glass RGB", 350], ["Holographic Shell", 600], ["Liquid Armor Case", 1200], ["Neutron Armor", 3000], ["Nano-Machine Cube", 5000]],
+  sound: [["Нет", 0], ["Basic Audio", 30], ["Realtek HD", 60], ["Sound Blaster", 120], ["5.1 Gaming", 200], ["7.1 Surround", 300], ["External DAC", 500], ["Studio Interface", 800], ["AI SoundCard", 1500], ["Quantum Audio Core", 5000]],
+  monitor: [["CRT 14\"", 20], ["LCD 15\"", 40], ["LCD 19\"", 90], ["1080p 60Hz", 150], ["1080p 144Hz", 250], ["1440p 144Hz", 400], ["4K 60Hz", 600], ["4K 240Hz", 1200], ["8K HDR", 2500], ["Quantum Display", 5000]],
+  os: [["MS-DOS", 0], ["Windows 95", 10], ["Windows XP", 30], ["Windows 7", 60], ["Windows 10", 100], ["Windows 11", 200], ["Linux Mint", 0], ["Ubuntu", 0], ["macOS Ventura", 500], ["QuantumOS", 1000], ["PyOS", 8000], ["EarOC", 15000], ["BRToc", 140000], ["CandyOC", 9000000]],
+};
+
+let selectorsDiv = document.getElementById("selectors");
+for (let part in partData) {
+  let label = document.createElement("label");
+  label.innerText = part.toUpperCase();
+  let select = document.createElement("select");
+  select.id = part;
+  for (let [name, price] of partData[part]) {
+    let opt = document.createElement("option");
+    opt.value = `${name},${price}`;
+    opt.innerText = `${name} — $${price}`;
+    select.appendChild(opt);
+  }
+  selectorsDiv.appendChild(label);
+  selectorsDiv.appendChild(select);
+}
+
+function updateBudgetDisplay() {
+  document.getElementById("budget").innerText = budget;
+  localStorage.setItem("pc_budget", budget);
+}
+updateBudgetDisplay();
+
+function buildPC() {
+  let total = 0;
+  let summary = "";
+  for (let part in partData) {
+    const [name, price] = document.getElementById(part).value.split(",");
+    total += +price;
+    summary += `<li><b>${part.toUpperCase()}</b>: ${name} — $${price}</li>`;
+  }
+  if (total > budget) {
+    document.getElementById("result").innerHTML = `<h3 style="color:red">❌ Не хватает денег! Нужно $${total}, есть $${budget}</h3>`;
+    document.getElementById("sellBtn").style.display = "none";
+    pcBuilt = false;
+    return;
+  }
+  budget -= total;
+  lastBuildCost = total;
+  pcBuilt = true;
+  updateBudgetDisplay();
+  document.getElementById("result").innerHTML = `
+    <h2>✅ ПК собран:</h2>
+    <ul>${summary}</ul>
+    <h3>💸 Потрачено: $${total}</h3>
+    <h3 style="color:lime">Готов к продаже!</h3>
+  `;
+  document.getElementById("sellBtn").style.display = "block";
+}
+
+function sellPC() {
+  if (!pcBuilt) return;
+  let profit = Math.round(lastBuildCost * 1.25);
+  budget += profit;
+  pcBuilt = false;
+  updateBudgetDisplay();
+  document.getElementById("result").innerHTML = `
+    <h2>🎉 ПК продан за $${profit}</h2>
+    <h3>💰 Новый бюджет: $${budget}</h3>
+  `;
+  document.getElementById("sellBtn").style.display = "none";
+}
+</script>
+
+</body>
+</html>
