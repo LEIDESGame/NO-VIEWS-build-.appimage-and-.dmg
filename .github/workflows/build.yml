@@ -2,31 +2,44 @@ name: Build ComputerBuild
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          node-version: 18
+          python-version: '3.11'
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
 
-      - name: Build app
-        run: npx electron-builder --${{ matrix.os == 'windows-latest' && 'win' || matrix.os == 'macos-latest' && 'mac' || 'linux' }}
+      - name: Build Executable
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            pyinstaller --onefile main.py --name "ComputerBuild"
+          elif [[ "$RUNNER_OS" == "Linux" ]]; then
+            pyinstaller --onefile main.py --name "ComputerBuild"
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            pyinstaller --onefile main.py --name "ComputerBuild" --osx-bundle-identifier com.example.computerbuild --windowed --clean
+            # Отключаем подпись (иначе будет ошибка)
+            codesign --remove-signature dist/ComputerBuild || true
+          fi
 
-      - name: Upload artifacts
+      - name: Upload Build
         uses: actions/upload-artifact@v4
         with:
           name: ComputerBuild-${{ matrix.os }}
